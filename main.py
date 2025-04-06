@@ -1,6 +1,280 @@
-import base64
+import os
+import requests
+import importlib.util
+import sys
+import subprocess
+import asyncio
+from telethon import TelegramClient, events
 
-encoded_code = b"aW1wb3J0IG9zCmltcG9ydCBzeXMKaW1wb3J0IHN1YnByb2Nlc3MKaW1wb3J0IGFzeW5jaW8KZnJvbSB0ZWxldGhvbiBpbXBvcnQgVGVsZWdyYW1DbGllbnQsIGV2ZW50cwoKIyDQn9C+0LvQvdCw0Y8g0YPRgdGC0LDQvdC+0LLQutCwIEdpdCDQuCBQeXRob24gKNCx0LXQtyBzdWRvKQpkZWYgaW5zdGFsbF9yZXF1aXJlbWVudHMoKToKICAgIGlmIHN5cy5wbGF0Zm9ybS5zdGFydHN3aXRoKCJ3aW4iKToKICAgICAgICBzdWJwcm9jZXNzLnJ1bihbIndpbmdldCIsICJpbnN0YWxsIiwgIkdpdC5HaXQiXSwgc2hlbGw9VHJ1ZSkKICAgICAgICBzdWJwcm9jZXNzLnJ1bihbIndpbmdldCIsICJpbnN0YWxsIiwgIlB5dGhvbi5QeXRob24uMy4xMSJdLCBzaGVsbD1UcnVlKQogICAgZWxpZiBzeXMucGxhdGZvcm0uc3RhcnRzd2l0aCgibGludXgiKToKICAgICAgICBzdWJwcm9jZXNzLnJ1bihbImFwdCIsICJ1cGRhdGUiXSkKICAgICAgICBzdWJwcm9jZXNzLnJ1bihbImFwdCIsICJpbnN0YWxsIiwgIi15IiwgImdpdCIsICJweXRob24zIiwgInB5dGhvbjMtcGlwIl0pCiAgICBlbHNlOgogICAgICAgIHByaW50KCLimqAg0J3QtdC40LfQstC10YHRgtC90LDRjyDQntChLCDRg9GB0YLQsNC90L7QstC60LAg0LzQvtC20LXRgiDQvdC1INGB0YDQsNCx0L7RgtCw0YLRjC4iKQoKIyDQkNCy0YLQvtGD0YHRgtCw0L3QvtCy0LrQsCDQt9Cw0LLQuNGB0LjQvNC+0YHRgtC10LkKUkVRVUlSRURfTU9EVUxFUyA9IFsidGVsZXRob24iLCAiZ2l0IiwgInB5dGhvbiJdCmZvciBtb2R1bGUgaW4gUkVRVUlSRURfTU9EVUxFUzoKICAgIHRyeToKICAgICAgICBfX2ltcG9ydF9fKG1vZHVsZSkKICAgIGV4Y2VwdCBJbXBvcnRFcnJvcjoKICAgICAgICBwcmludChmItCj0YHRgtCw0L3QsNCy0LvQuNCy0LDRjiB7bW9kdWxlfS4uLiIpCiAgICAgICAgc3VicHJvY2Vzcy5ydW4oW3N5cy5leGVjdXRhYmxlLCAiLW0iLCAicGlwIiwgImluc3RhbGwiLCBtb2R1bGVdKQoKaW5zdGFsbF9yZXF1aXJlbWVudHMoKQoKIyDQktCw0YjQuCDQtNCw0L3QvdGL0LUgQVBJCmFwaV9pZCA9IDE4NTc2MTkyICAKYXBpX2hhc2ggPSAnOTU3NjAyN2YxMmMzOGI5ZGIyNWYyOWY2MzRiZmJmYWEnICAKCiMg0KTQsNC50Lsg0LTQu9GPINGF0YDQsNC90LXQvdC40Y8gSUQg0L/QvtC70YzQt9C+0LLQsNGC0LXQu9GPClVTRVJfSURfRklMRSA9ICJ1c2VyX2lkLnR4dCIKCiMg0JjQvdC40YbQuNCw0LvQuNC30LDRhtC40Y8g0LrQu9C40LXQvdGC0LAKY2xpZW50ID0gVGVsZWdyYW1DbGllbnQoJ2JvdF9zZXNzaW9uJywgYXBpX2lkLCBhcGlfaGFzaCkKCiMg0KHQvtGF0YDQsNC90LXQvdC40LUgSUQg0L/QvtC70YzQt9C+0LLQsNGC0LXQu9GPINC/0YDQuCDQv9C10YDQstC+0Lwg0LfQsNC/0YPRgdC60LUKZGVmIHNhdmVfdXNlcl9pZCh1c2VyX2lkKToKICAgIHdpdGggb3BlbihVU0VSX0lEX0ZJTEUsICJ3IikgYXMgZjoKICAgICAgICBmLndyaXRlKHN0cih1c2VyX2lkKSkKCiMg0J/QvtC70YPRh9C10L3QuNC1IElEINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjwpkZWYgZ2V0X3VzZXJfaWQoKToKICAgIGlmIG9zLnBhdGguZXhpc3RzKFVTRVJfSURfRklMRSk6CiAgICAgICAgd2l0aCBvcGVuKFVTRVJfSURfRklMRSwgInIiKSBhcyBmOgogICAgICAgICAgICByZXR1cm4gaW50KGYucmVhZCgpLnN0cmlwKCkpCiAgICByZXR1cm4gTm9uZQoKIyDQn9GA0L7QstC10YDQutCwLCDRj9Cy0LvRj9C10YLRgdGPINC70Lgg0L/QvtC70YzQt9C+0LLQsNGC0LXQu9GMINCw0LLRgtC+0YDQuNC30L7QstCw0L3QvdGL0LwKZGVmIGlzX3VzZXJfYXV0aG9yaXplZCh1c2VyX2lkKToKICAgIHNhdmVkX3VzZXJfaWQgPSBnZXRfdXNlcl9pZCgpCiAgICByZXR1cm4gc2F2ZWRfdXNlcl9pZCBpcyBub3QgTm9uZSBhbmQgc2F2ZWRfdXNlcl9pZCA9PSB1c2VyX2lkCgojINCU0LXQutC+0YDQsNGC0L7RgCDQtNC70Y8g0YPQtNCw0LvQtdC90LjRjyDQutC+0LzQsNC90LTRiyDQv9C+0YHQu9C1INCy0YvQv9C+0LvQvdC10L3QuNGPCmRlZiBkZWxldGVfY29tbWFuZChmdW5jKToKICAgIGFzeW5jIGRlZiB3cmFwcGVyKGV2ZW50KToKICAgICAgICBhd2FpdCBmdW5jKGV2ZW50KQogICAgICAgIGF3YWl0IGV2ZW50LmRlbGV0ZSgpCiAgICByZXR1cm4gd3JhcHBlcgoKIyDQk9C10L3QtdGA0LDRhtC40Y8g0YHRgdGL0LvQvtC6INC90LAg0LzQtdGB0YHQtdC90LTQttC10YDRiwpkZWYgZ2V0X21lc3NlbmdlcnNfbGlua3ModXNlcl9udW1iZXIpOgogICAgcmV0dXJuICgKICAgICAgICBmIvCfk7EgKirQn9GA0L7QstC10YDQuNGC0Ywg0L3QvtC80LXRgCDQsiDQvNC10YHRgdC10L3QtNC20LXRgNCw0YU6KipcbiIKICAgICAgICBmIvCflLkgW1doYXRzQXBwXShodHRwczovL3dhLm1lL3t1c2VyX251bWJlcn0pXG4iCiAgICAgICAgZiLwn5S5IFtUZWxlZ3JhbV0oaHR0cHM6Ly90Lm1lLyt7dXNlcl9udW1iZXIubHN0cmlwKCcrJyl9KVxuIgogICAgICAgIGYi8J+UuSBbVmliZXJdKHZpYmVyOi8vY2hhdD9udW1iZXI9e3VzZXJfbnVtYmVyfSlcbiIKICAgICAgICBmIvCflLkgW0ZhY2Vib29rIE1lc3Nlbmdlcl0oaHR0cHM6Ly9tLm1lL3t1c2VyX251bWJlcn0pXG4iCiAgICAgICAgZiLwn5S5IFtTa3lwZV0oc2t5cGU6e3VzZXJfbnVtYmVyfT9jaGF0KVxuIgogICAgICAgIGYi8J+UuSBbU2lnbmFsXShodHRwczovL3NpZ25hbC5tZS8jcC97dXNlcl9udW1iZXJ9KVxuIgogICAgICAgIGYi8J+UuSBbTElORV0oaHR0cHM6Ly9saW5lLm1lL3RpL3Avfnt1c2VyX251bWJlcn0pXG4iCiAgICAgICAgZiLwn5S5IFtEaXNjb3JkXShodHRwczovL2Rpc2NvcmQuY29tL3VzZXJzL3t1c2VyX251bWJlcn0pIgogICAgKQoKIyDQpNGD0L3QutGG0LjRjyDQtNC70Y8g0L/QvtC70YPRh9C10L3QuNGPINC40L3RhNC+0YDQvNCw0YbQuNC4INGBINCx0L7RgtCwIEBwaG9uZWJvb2tfc3BhY2VfYm90ICjQuNGB0L/QvtC70YzQt9GD0LXQvCDQvtC00L3QviDQvdC+0LLQvtC1INGB0L7QvtCx0YnQtdC90LjQtSkKYXN5bmMgZGVmIGdldF91c2VyX2luZm9fZnJvbV9ib3QodXNlcl9udW1iZXIpOgogICAgIyDQntGC0L/RgNCw0LLQu9GP0LXQvCDQt9Cw0L/RgNC+0YEg0LIg0LHQvtGC0LAgQHBob25lYm9va19zcGFjZV9ib3QKICAgIGF3YWl0IGNsaWVudC5zZW5kX21lc3NhZ2UoJ0BwaG9uZWJvb2tfc3BhY2VfYm90JywgdXNlcl9udW1iZXIpCiAgICAKICAgICMg0JTQsNC10Lwg0LLRgNC10LzRjyDQsdC+0YLRgyDQtNC70Y8g0L7RgtCy0LXRgtCwICjRg9Cy0LXQu9C40YfQuNCy0LDQtdC8INC30LDQtNC10YDQttC60YMpCiAgICBhd2FpdCBhc3luY2lvLnNsZWVwKDUpICAjINCj0LLQtdC70LjRh9C40LLQsNC10Lwg0LfQsNC00LXRgNC20LrRgyDQtNC+IDUg0YHQtdC60YPQvdC0INC00LvRjyDQu9GD0YfRiNC10LPQviDQv9C+0LvRg9GH0LXQvdC40Y8g0L7RgtCy0LXRgtCwCiAgICAKICAgICMg0J/QvtC70YPRh9Cw0LXQvCDQvtC00L3QviDRgdC+0L7QsdGJ0LXQvdC40LUg0L7RgiDQsdC+0YLQsAogICAgbWVzc2FnZXMgPSBhd2FpdCBjbGllbnQuZ2V0X21lc3NhZ2VzKCdAcGhvbmVib29rX3NwYWNlX2JvdCcsIGxpbWl0PTEpCiAgICAKICAgIGlmIG1lc3NhZ2VzOgogICAgICAgIG1lc3NhZ2UgPSBtZXNzYWdlc1swXQogICAgICAgICMg0J7RgtC/0YDQsNCy0LvRj9C10Lwg0YDQtdC30YPQu9GM0YLQsNGCINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjgogICAgICAgIHJldHVybiBtZXNzYWdlLnRleHQKICAgIAogICAgcmV0dXJuICLQmNC90YTQvtGA0LzQsNGG0LjRjyDQv9C+INC90L7QvNC10YDRgyDQvdC1INC90LDQudC00LXQvdCwIgoKIyDQmtC+0LzQsNC90LTQsCDQv9GA0L7QsdC40LLQsCDQvdC+0LzQtdGA0LAg0YEg0YHRgdGL0LvQutCw0LzQuCDQvdCwINC80LXRgdGB0LXQvdC00LbQtdGA0YsKQGNsaWVudC5vbihldmVudHMuTmV3TWVzc2FnZShwYXR0ZXJuPXIiXC5wciAoXCs/XGQrKSIsIGZvcndhcmRzPUZhbHNlKSkKQGRlbGV0ZV9jb21tYW5kCmFzeW5jIGRlZiBwcihldmVudCk6CiAgICB1c2VyX2lkID0gZXZlbnQuc2VuZGVyX2lkCiAgICAjINCY0LPQvdC+0YDQuNGA0YPQtdC8INGB0L7QvtCx0YnQtdC90LjRjyDQvtGCINC90LXQsNCy0YLQvtGA0LjQt9C+0LLQsNC90L3Ri9GFINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvQtdC5CiAgICBpZiBub3QgaXNfdXNlcl9hdXRob3JpemVkKHVzZXJfaWQpOgogICAgICAgIHJldHVybgoKICAgIHVzZXJfbnVtYmVyID0gZXZlbnQucGF0dGVybl9tYXRjaC5ncm91cCgxKQogICAgIyDQn9C+0LvRg9GH0LDQtdC8INC40L3RhNC+0YDQvNCw0YbQuNGOINGBINCx0L7RgtCwCiAgICB1c2VyX2luZm8gPSBhd2FpdCBnZXRfdXNlcl9pbmZvX2Zyb21fYm90KHVzZXJfbnVtYmVyKQogICAgCiAgICAjINCT0LXQvdC10YDQsNGG0LjRjyDRgdGB0YvQu9C60Lgg0L3QsCDQvNC10YHRgdC10L3QtNC20LXRgNGLCiAgICBtZXNzZW5nZXJzX2xpbmtzID0gZ2V0X21lc3NlbmdlcnNfbGlua3ModXNlcl9udW1iZXIpCiAgICAKICAgICMg0J7RgtC/0YDQsNCy0LvRj9C10Lwg0YDQtdC30YPQu9GM0YLQsNGCINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjgogICAgYXdhaXQgZXZlbnQucmVwbHkoZiJ7dXNlcl9pbmZvfVxue21lc3NlbmdlcnNfbGlua3N9IikKCiMg0JrQvtC80LDQvdC00LAgLmRveCAo0L/RgNC+0LLQtdGA0LrQsCDQtNCw0L3QvdGL0YUg0L/QvtC70YzQt9C+0LLQsNGC0LXQu9GPKQpAY2xpZW50Lm9uKGV2ZW50cy5OZXdNZXNzYWdlKHBhdHRlcm49ciJcLmRveCIsIGZvcndhcmRzPUZhbHNlKSkKQGRlbGV0ZV9jb21tYW5kCmFzeW5jIGRlZiBkb3goZXZlbnQpOgogICAgdXNlcl9pZCA9IGV2ZW50LnNlbmRlcl9pZAogICAgIyDQmNCz0L3QvtGA0LjRgNGD0LXQvCDRgdC+0L7QsdGJ0LXQvdC40Y8g0L7RgiDQvdC10LDQstGC0L7RgNC40LfQvtCy0LDQvdC90YvRhSDQv9C+0LvRjNC30L7QstCw0YLQtdC70LXQuQogICAgaWYgbm90IGlzX3VzZXJfYXV0aG9yaXplZCh1c2VyX2lkKToKICAgICAgICByZXR1cm4KCiAgICBpZiBldmVudC5yZXBseV90b19tc2dfaWQ6CiAgICAgICAgcmVwbHlfbWVzc2FnZSA9IGF3YWl0IGV2ZW50LmdldF9yZXBseV9tZXNzYWdlKCkKICAgICAgICBzZW5kZXIgPSByZXBseV9tZXNzYWdlLnNlbmRlcgogICAgICAgIHVzZXJfaWQgPSBzZW5kZXIuaWQKCiAgICAgICAgIyDQn9C+0LvRg9GH0LDQtdC8INC00LDQvdC90YvQtSDQv9C+0LvRjNC30L7QstCw0YLQtdC70Y8KICAgICAgICB1c2VybmFtZSA9IHNlbmRlci51c2VybmFtZSBpZiBzZW5kZXIudXNlcm5hbWUgZWxzZSAi0J3QtSDRg9C60LDQt9Cw0L3QviIKICAgICAgICBmaXJzdF9uYW1lID0gc2VuZGVyLmZpcnN0X25hbWUgaWYgc2VuZGVyLmZpcnN0X25hbWUgZWxzZSAi0J3QtSDRg9C60LDQt9Cw0L3QviIKICAgICAgICBsYXN0X25hbWUgPSBzZW5kZXIubGFzdF9uYW1lIGlmIHNlbmRlci5sYXN0X25hbWUgZWxzZSAi0J3QtSDRg9C60LDQt9Cw0L3QviIKICAgICAgICBwaG9uZV9udW1iZXIgPSBzZW5kZXIucGhvbmUgaWYgc2VuZGVyLnBob25lIGVsc2UgTm9uZSAgIyDQndC+0LzQtdGAINGC0LXQu9C10YTQvtC90LAsINC10YHQu9C4INC00L7RgdGC0YPQv9C10L0KCiAgICAgICAgaW5mbyA9ICgKICAgICAgICAgICAgZiLwn5OMINCU0LDQvdC90YvQtSDQviDQv9C+0LvRjNC30L7QstCw0YLQtdC70LU6XG4iCiAgICAgICAgICAgIGYi8J+UuSDQmNC80Y86IHtmaXJzdF9uYW1lfSB7bGFzdF9uYW1lfVxuIgogICAgICAgICAgICBmIvCflLkgSUQ6IHt1c2VyX2lkfVxuIgogICAgICAgICAgICBmIvCflLkg0K7Qt9C10YDQvdC10LnQvDogQHt1c2VybmFtZX1cbiIKICAgICAgICApCgogICAgICAgICMg0J/QvtC60LDQt9GL0LLQsNC10Lwg0L3QvtC80LXRgCDRgtC10LvQtdGE0L7QvdCwLCDQtdGB0LvQuCDQvtC9INC00L7RgdGC0YPQv9C10L0KICAgICAgICBpZiBwaG9uZV9udW1iZXI6CiAgICAgICAgICAgIGluZm8gKz0gZiLwn5S5INCd0L7QvNC10YAg0YLQtdC70LXRhNC+0L3QsDoge3Bob25lX251bWJlcn1cbiIKICAgICAgICAKICAgICAgICBhd2FpdCBldmVudC5yZXBseShpbmZvKQoKIyDQmtC+0LzQsNC90LTQsCAuaGVscApAY2xpZW50Lm9uKGV2ZW50cy5OZXdNZXNzYWdlKHBhdHRlcm49ciJcLmhlbHAiLCBmb3J3YXJkcz1GYWxzZSkpCkBkZWxldGVfY29tbWFuZAphc3luYyBkZWYgaGVscF9jb21tYW5kKGV2ZW50KToKICAgIGhlbHBfdGV4dCA9ICgKICAgICAgICAi8J+TjCDQlNC+0YHRgtGD0L/QvdGL0LUg0LrQvtC80LDQvdC00Ys6XG4iCiAgICAgICAgIvCflLkgYC5wciAr0L3QvtC80LXRgGAg4oCUINCf0YDQvtCx0LjRgtGMINC90L7QvNC10YAgKNC/0L7QutCw0LfQsNGC0Ywg0YHRgdGL0LvQutC4INC90LAg0LzQtdGB0YHQtdC90LTQttC10YDRiylcbiIKICAgICAgICAi8J+UuSBgLmRveGAg4oCUINCf0YDQvtCx0LjRgtGMINC/0L7Qu9GM0LfQvtCy0LDRgtC10LvRjyAo0LIg0L7RgtCy0LXRgiDQvdCwINGB0L7QvtCx0YnQtdC90LjQtSlcbiIKICAgICAgICAi8J+UuSBgLm1kICjRhNCw0LnQuylgIOKAlCDQo9GB0YLQsNC90L7QstC40YLRjCDQvNC+0LTRg9C70YxcbiIKICAgICAgICAi8J+UuSBgLm1lbnVgIOKAlCDQn9GA0L7RgdC80L7RgtGA0LXRgtGMINGD0YHRgtCw0L3QvtCy0LvQtdC90L3Ri9C1INC80L7QtNGD0LvQuFxuIgogICAgICAgICLwn5S5INCa0LDQvdCw0Ls6IEBEb3hHcmFtMjAyNSIKICAgICkKICAgIGF3YWl0IGV2ZW50LnJlcGx5KGhlbHBfdGV4dCkKCiMg0JfQsNC/0YPRgdC6INC60LvQuNC10L3RgtCwCmFzeW5jIGRlZiBtYWluKCk6CiAgICBhd2FpdCBjbGllbnQuc3RhcnQoKQogICAgbWUgPSBhd2FpdCBjbGllbnQuZ2V0X21lKCkKICAgIAogICAgIyDQodC+0YXRgNCw0L3QtdC90LjQtSBJRCDQv9GA0Lgg0L/QtdGA0LLQvtC8INC30LDQv9GD0YHQutC1CiAgICBpZiBnZXRfdXNlcl9pZCgpIGlzIE5vbmU6CiAgICAgICAgc2F2ZV91c2VyX2lkKG1lLmlkKQogICAgICAgIHByaW50KGYi4pyFINCh0L7RhdGA0LDQvdGR0L0gSUQ6IHttZS5pZH0iKQoKICAgIHByaW50KCLQkdC+0YIg0LfQsNC/0YPRidC10L0g0Lgg0YDQsNCx0L7RgtCw0LXRgiEiKQogICAgYXdhaXQgY2xpZW50LnJ1bl91bnRpbF9kaXNjb25uZWN0ZWQoKQoKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAgIGNsaWVudC5sb29wLnJ1bl91bnRpbF9jb21wbGV0ZShtYWluKCkp"  # Ваш Base64-закодированный код
-decoded_code = base64.b64decode(encoded_code).decode("utf-8")
 
-exec(compile(decoded_code, "<string>", "exec"))
+# Полная установка Git и Python (без sudo)
+def install_requirements():
+    if sys.platform.startswith("win"):
+        subprocess.run(["winget", "install", "Git.Git"], shell=True)
+        subprocess.run(["winget", "install", "Python.Python.3.11"], shell=True)
+    elif sys.platform.startswith("linux"):
+        subprocess.run(["apt", "update"])
+        subprocess.run(["apt", "install", "-y", "git", "python3", "python3-pip"])
+    else:
+        print("⚠ Неизвестная ОС, установка может не сработать.")
+
+# Автоустановка зависимостей
+REQUIRED_MODULES = ["telethon", "git", "python"]
+for module in REQUIRED_MODULES:
+    try:
+        __import__(module)
+    except ImportError:
+        print(f"Устанавливаю {module}...")
+        subprocess.run([sys.executable, "-m", "pip", "install", module])
+
+install_requirements()
+
+# Ваши данные API
+api_id = 18576192  
+api_hash = '9576027f12c38b9db25f29f634bfbfaa'  
+VK_ACCESS_TOKEN = "63d9b63663d9b63663d9b636e760f5cd60663d963d9b63604082f39e27adf0c2a05303f"
+VK_API_VERSION = "5.131"
+
+# Файл для хранения ID пользователя
+USER_ID_FILE = "user_id.txt"
+MODULES_DIR = "modules"
+
+# Автозагрузка всех .py модулей из папки modules
+
+def load_modules():
+    if not os.path.exists(MODULES_DIR):
+        os.makedirs(MODULES_DIR)
+
+    for filename in os.listdir(MODULES_DIR):
+        if filename.endswith(".py"):
+            module_name = filename[:-3]
+            module_path = os.path.join(MODULES_DIR, filename)
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, module_path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                print(f"✅ Модуль загружен: {filename}")
+            except Exception as e:
+                print(f"❌ Ошибка загрузки модуля {filename}: {e}")
+
+# Инициализация клиента
+client = TelegramClient('bot_session', api_id, api_hash)
+
+# Сохранение ID пользователя при первом запуске
+def save_user_id(user_id):
+    with open(USER_ID_FILE, "w") as f:
+        f.write(str(user_id))
+
+# Получение ID пользователя
+def get_user_id():
+    if os.path.exists(USER_ID_FILE):
+        with open(USER_ID_FILE, "r") as f:
+            return int(f.read().strip())
+    return None
+
+# Проверка, является ли пользователь авторизованным
+def is_user_authorized(user_id):
+    saved_user_id = get_user_id()
+    return saved_user_id is not None and saved_user_id == user_id
+
+# Декоратор для удаления команды после выполнения
+def delete_command(func):
+    async def wrapper(event):
+        await func(event)
+        await event.delete()
+    return wrapper
+
+# Генерация ссылок на мессенджеры
+def get_messengers_links(user_number):
+    return (
+        f"📱 **Проверить номер в мессенджерах:**\n"
+        f"🔹 [WhatsApp](https://wa.me/{user_number})\n"
+        f"🔹 [Telegram](https://t.me/+{user_number.lstrip('+')})\n"
+        f"🔹 [Viber](viber://chat?number={user_number})\n"
+        f"🔹 [Facebook Messenger](https://m.me/{user_number})\n"
+        f"🔹 [Skype](skype:{user_number}?chat)\n"
+        f"🔹 [Signal](https://signal.me/#p/{user_number})\n"
+        f"🔹 [LINE](https://line.me/ti/p/~{user_number})\n"
+        f"🔹 [Discord](https://discord.com/users/{user_number})"
+    )
+
+# Функция для получения информации с бота @phonebook_space_bot (используем одно новое сообщение)
+async def get_user_info_from_bot(user_number):
+    # Отправляем запрос в бота @phonebook_space_bot
+    await client.send_message('@phonebook_space_bot', user_number)
+    
+    # Даем время боту для ответа (увеличиваем задержку)
+    await asyncio.sleep(5)  # Увеличиваем задержку до 5 секунд для лучшего получения ответа
+    
+    # Получаем одно сообщение от бота
+    messages = await client.get_messages('@phonebook_space_bot', limit=1)
+    
+    if messages:
+        message = messages[0]
+        # Отправляем результат пользователю
+        return message.text
+    
+    return "Информация по номеру не найдена"
+
+# Команда пробива номера с ссылками на мессенджеры
+@client.on(events.NewMessage(pattern=r"\.pr (\+?\d+)", forwards=False))
+@delete_command
+async def pr(event):
+    user_id = event.sender_id
+    # Игнорируем сообщения от неавторизованных пользователей
+    if not is_user_authorized(user_id):
+        return
+
+    user_number = event.pattern_match.group(1)
+    # Получаем информацию с бота
+    user_info = await get_user_info_from_bot(user_number)
+    
+    # Генерация ссылки на мессенджеры
+    messengers_links = get_messengers_links(user_number)
+    
+    # Отправляем результат пользователю
+    await event.reply(f"{user_info}\n{messengers_links}")
+
+# Команда .dox (проверка данных пользователя)
+@client.on(events.NewMessage(pattern=r"\.dox", forwards=False))
+@delete_command
+async def dox(event):
+    user_id = event.sender_id
+    # Игнорируем сообщения от неавторизованных пользователей
+    if not is_user_authorized(user_id):
+        return
+
+    if event.reply_to_msg_id:
+        reply_message = await event.get_reply_message()
+        sender = reply_message.sender
+        user_id = sender.id
+
+        # Получаем данные пользователя
+        username = sender.username if sender.username else "Не указано"
+        first_name = sender.first_name if sender.first_name else "Не указано"
+        last_name = sender.last_name if sender.last_name else "Не указано"
+        phone_number = sender.phone if sender.phone else None  # Номер телефона, если доступен
+
+        info = (
+            f"📌 Данные о пользователе:\n"
+            f"🔹 Имя: {first_name} {last_name}\n"
+            f"🔹 ID: {user_id}\n"
+            f"🔹 Юзернейм: @{username}\n"
+        )
+
+        # Показываем номер телефона, если он доступен
+        if phone_number:
+            info += f"🔹 Номер телефона: {phone_number}\n"
+        
+        await event.reply(info)
+
+# Команда .help
+@client.on(events.NewMessage(pattern=r"\.help", forwards=False))
+@delete_command
+async def help_command(event):
+    help_text = (
+        "📌 Доступные команды:\n"
+        "🔹 `.pr +номер` — Пробить номер (показать ссылки на мессенджеры)\n"
+        "🔹 `.dox` — Пробить пользователя (в ответ на сообщение)\n"
+        "🔹 `.md (файл)` — Установить модуль\n"
+        "🔹 `.menu` — Просмотреть установленные модули\n"
+        "🔹 .vk @durov — Пробить по вк/n"
+        "🔹 Канал: @DoxGram2025"
+    )
+    await event.reply(help_text)
+
+# Запуск клиента
+async def main():
+    await client.start()
+    me = await client.get_me()
+    
+    # Сохранение ID при первом запуске
+    if get_user_id() is None:
+        save_user_id(me.id)
+        print(f"✅ Сохранён ID: {me.id}")
+
+    print("Бот запущен и работает!")
+    await client.run_until_disconnected()
+
+
+
+# Команда .vk @username
+@client.on(events.NewMessage(pattern=r"\.vk\s+@?(\w+)", forwards=False))
+@delete_command
+async def vk_lookup(event):
+    user_id = event.sender_id
+    if not is_user_authorized(user_id):
+        return
+
+    username = event.pattern_match.group(1)
+
+    # Получение данных через VK API
+    url = "https://api.vk.com/method/users.get"
+    params = {
+        "access_token": VK_ACCESS_TOKEN,
+        "v": VK_API_VERSION,
+        "user_ids": username,
+        "fields": "city,country"
+    }
+
+    response = requests.get(url, params=params).json()
+    
+    if "response" in response:
+        user = response["response"][0]
+        first_name = user.get("first_name", "Не указано")
+        last_name = user.get("last_name", "Не указано")
+        city = user.get("city", {}).get("title", "Не указано")
+        country = user.get("country", {}).get("title", "Не указано")
+
+        reply = (
+            f"📌 Данные VK:\n"
+            f"🔹 Имя: {first_name} {last_name}\n"
+            f"🔹 Страна: {country}\n"
+            f"🔹 Город: {city}"
+        )
+    else:
+        reply = "❌ Пользователь не найден или ошибка API."
+
+    await event.reply(reply)
+
+@client.on(events.NewMessage(pattern=r"\.md", forwards=False))
+@delete_command
+async def install_module(event):
+    user_id = event.sender_id
+    if not is_user_authorized(user_id):
+        return
+
+    if event.reply_to_msg_id:
+        reply_msg = await event.get_reply_message()
+        if reply_msg.file and reply_msg.file.name.endswith(".py"):
+            file_path = os.path.join("modules", reply_msg.file.name)
+            os.makedirs("modules", exist_ok=True)
+            await reply_msg.download_media(file=file_path)
+            await event.reply(f"✅ Модуль `{reply_msg.file.name}` установлен.")
+        else:
+            await event.reply("❌ Ответьте на .py файл.")
+    else:
+        await event.reply("❌ Используй команду `.md`, ответив на .py файл.")
+
+@client.on(events.NewMessage(pattern=r"\.menu", forwards=False))
+@delete_command
+async def show_modules(event):
+    user_id = event.sender_id
+    if not is_user_authorized(user_id):
+        return
+
+    module_dir = "modules"
+    if not os.path.exists(module_dir):
+        await event.reply("❌ Нет установленных модулей.")
+        return
+
+    modules = [f for f in os.listdir(module_dir) if f.endswith(".py")]
+    if not modules:
+        await event.reply("❌ Нет установленных модулей.")
+    else:
+        module_list = "\n".join([f"🔹 {m}" for m in modules])
+        await event.reply(f"📦 Установленные модули:\n{module_list}")
+
+
+if __name__ == "__main__":
+    client.loop.run_until_complete(main())
